@@ -31,7 +31,8 @@
 #include "SVFIR/SVFIR.h"
 #include "SVFIR/SVFStmt.h"
 #include "SVFIR/SVFValue.h"
-#include "SVFIR/ICFGNode.h"
+#include "SVFIR/ICFG.h" 
+
 
 // SVF utility headers
 #include "Util/BasicTypes.h"
