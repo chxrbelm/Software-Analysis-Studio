@@ -153,29 +153,29 @@ void SSE::handleCall(const CallCFGEdge* callEdge) {
     const ICFGNode* srcNode = callEdge->getSrcNode();
     DBOP(std::cout << "\n## Analyzing " << srcNode->toString() << "\n");
 
-    const CallICFGNode* callNode = SVFUtil::cast<CallICFGNode>(callEdge->getSrcNode());
-    const FunEntryICFGNode* funEntryNode = SVFUtil::cast<FunEntryICFGNode>(callEdge->getDstNode());
+    const CallICFGNode* callNode   = SVFUtil::cast<CallICFGNode>(callEdge->getSrcNode());
+    const FunEntryICFGNode* entry  = SVFUtil::cast<FunEntryICFGNode>(callEdge->getDstNode());
 
-    assert(callNode->getSVFStmts().size() == callNode->getActualParms().size() &&
-           "Numbers of CallPEs and ActualParms not the same?");
-
-    // --- Save current solver context before entering callee
+    // --- Save solver context before entering callee
     getSolver().push();
 
-    // --- Bind each actual argument to its formal parameter
-    for (const auto* callPE : callNode->getCallPEs()) {
-        NodeID lhs = callPE->getLHSVarID(); // formal
-        NodeID rhs = callPE->getRHSVarID(); // actual
-        z3::expr lhsExpr = getZ3Expr(lhs);
-        z3::expr rhsExpr = getZ3Expr(rhs);
-        addToSolver(lhsExpr == rhsExpr);
+    // --- Bind each actual argument to its formal parameter (robust for all SVF versions)
+    for (const SVFStmt* s : callNode->getSVFStmts()) {
+        if (const auto* pe = SVFUtil::dyn_cast<CallPE>(s)) {
+            NodeID lhs = pe->getLHSVarID();  // formal parameter
+            NodeID rhs = pe->getRHSVarID();  // actual argument
+            z3::expr lhsExpr = getZ3Expr(lhs);
+            z3::expr rhsExpr = getZ3Expr(rhs);
+            addToSolver(lhsExpr == rhsExpr);
+        }
     }
 
     // --- Track the calling context (callee entry)
-    pushCallingCtx(funEntryNode);
+    pushCallingCtx(entry);
 
-    DBOP(std::cout << "Entered function: " << funEntryNode->toString() << "\n");
+    DBOP(std::cout << "Entered function: " << entry->toString() << "\n");
 }
+
 
 
 /// TODO: Implement handling of function returns
