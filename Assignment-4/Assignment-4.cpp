@@ -42,6 +42,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <sstream>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -188,31 +189,34 @@ void SSE::handleRet(const RetCFGEdge* retEdge) {
 
     assert(retNode->getSVFStmts().size() <= 1 && "We can only have one RetPE per function!");
 
-    // --- Extract return parameter edge (if exists)
+    // --- Locate RetPE safely across all SVF versions
     const RetPE* retPE = nullptr;
-    if (!retNode->getRetPEs().empty())
-        retPE = *(retNode->getRetPEs().begin());
+    for (const SVFStmt* s : retNode->getSVFStmts()) {
+        if (const auto* r = SVFUtil::dyn_cast<RetPE>(s)) {
+            retPE = r;
+            break;
+        }
+    }
 
-    // --- Retrieve RHS (returned expr) before popping solver context
-    z3::expr rhsExpr = getCtx().int_val(0);  // default if no return value
-    if (retPE)
-        rhsExpr = getZ3Expr(retPE->getRHSVarID());
-
-    // --- Pop solver context to return to caller’s state
-    getSolver().pop();
-
-    // --- Restore caller’s calling context
-    if (!callingCtx.empty())
-        popCallingCtx();
-
-    // --- If the function returns a value, assign it back to caller’s LHS
+    // --- Capture RHS (return value) before popping solver context
+    z3::expr rhs = getCtx().int_val(0);
     if (retPE) {
-        z3::expr lhsExpr = getZ3Expr(retPE->getLHSVarID());
-        addToSolver(lhsExpr == rhsExpr);
+        rhs = getZ3Expr(retPE->getRHSVarID());
+    }
+
+    // --- Restore solver and calling context
+    getSolver().pop();
+    popCallingCtx();
+
+    // --- Propagate return value back to caller if it exists
+    if (retPE) {
+        z3::expr lhs = getZ3Expr(retPE->getLHSVarID());
+        addToSolver(lhs == rhs);
     }
 
     DBOP(std::cout << "Returned from function: " << funExitNode->toString() << "\n");
 }
+
 
 
 /// TODO: Implement handling of branch statements inside a function
